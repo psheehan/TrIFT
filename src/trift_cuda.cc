@@ -6,7 +6,7 @@
 
 void trift(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, double dx, 
-        double dy) {
+        double dy, int nthreads) {
 
     // Set up the coordinates for the triangulation.
 
@@ -84,7 +84,7 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
 
 void trift_extended(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, double dx, 
-        double dy) {
+        double dy, int nthreads) {
 
     // Set up the coordinates for the triangulation.
 
@@ -224,7 +224,7 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
 
 void trift2D(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, int nv,
-        double dx, double dy) {
+        double dx, double dy, int nthreads) {
 
     // Set up the coordinates for the triangulation.
     
@@ -322,7 +322,7 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
 
 void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, int nv,
-        double dx, double dy) {
+        double dx, double dy, int nthreads) {
 
     // Set up the coordinates for the triangulation.
 
