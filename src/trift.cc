@@ -1,5 +1,5 @@
-#ifdef _OPENMP
-    #include "trift_omp.cc"
+#ifdef __CUDACC__
+    #include "trift_cuda.cc"
 #else
-    #include "trift_basic.cc"
+    #include "trift_cpu.cc"
 #endif

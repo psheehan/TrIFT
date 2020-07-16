@@ -1,5 +1,6 @@
-#ifndef TRIFT_C
-#define TRIFT_C
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include "trift.h"
 #include <delaunator-header-only.hpp>
@@ -10,6 +11,12 @@
 void trift(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, double dx, 
         double dy, int nthreads) {
+
+    #ifdef _OPENMP
+    // Use only 1 thread first, otherwise Delaunator could have a segfault.
+
+    omp_set_num_threads(1);
+    #endif
 
     // Set up the coordinates for the triangulation.
 
@@ -24,10 +31,39 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
 
     delaunator::Delaunator d(coords);
 
+    #ifdef _OPENMP
+    // Now set to the appropriate number of threads for the remainder of the 
+    // program.
+
+    omp_set_num_threads(nthreads);
+    #endif
+
     // Loop through and take the Fourier transform of each triangle.
     
     Vector<double, 3> zhat(0., 0., 1.);
 
+    #ifdef _OPENMP
+    double **vis_real_tmp = new double*[nthreads];
+    double **vis_imag_tmp = new double*[nthreads];
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        vis_real_tmp[i] = new double[nu];
+        vis_imag_tmp[i] = new double[nu];
+    }
+    #endif
+
+    #pragma omp parallel
+    {
+    #ifdef _OPENMP
+    int thread_id = omp_get_thread_num();
+
+
+    for (std::size_t i = 0; i < (std::size_t) nu; i++) {
+        vis_real_tmp[thread_id][i] = 0;
+        vis_imag_tmp[thread_id][i] = 0;
+    }
+    #endif
+
+    #pragma omp for
     for (std::size_t i = 0; i < d.triangles.size(); i+=3) {
         double intensity_triangle = (flux[d.triangles[i]] + 
             flux[d.triangles[i+1]] + flux[d.triangles[i+2]]) / 3.;
@@ -59,19 +95,49 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
 
                 double rn_dot_uv = rn.dot(uv);
                 
+                #ifdef _OPENMP
+                vis_real_tmp[thread_id][k] += intensity_triangle * 
+                    ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
+                    FastCos(rn_dot_uv);
+                vis_imag_tmp[thread_id][k] += intensity_triangle * 
+                    ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
+                    -FastSin(rn_dot_uv);
+                #else
                 vis_real[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
                     (ln.dot(uv) * ln_1.dot(uv)) * FastCos(rn_dot_uv);
                 vis_imag[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
                     (ln.dot(uv) * ln_1.dot(uv)) * -FastSin(rn_dot_uv);
+                #endif
             }
         }
     }
+    }
+
+    // Now add together all of the separate vis'.
+
+    #ifdef _OPENMP
+    #pragma omp parallel for
+    for (std::size_t i = 0; i < (std::size_t) nu; i++) {
+        for (std::size_t j = 0; j < (std::size_t) nthreads; j++) {
+            vis_real[i] += vis_real_tmp[j][i];
+            vis_imag[i] += vis_imag_tmp[j][i];
+        }
+    }
+
+    // And clean up the tmp arrays.
+    
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        delete[] vis_real_tmp[i]; delete[] vis_imag_tmp[i];
+    }
+    delete[] vis_real_tmp; delete[] vis_imag_tmp;
+    #endif
 
     // Do the centering of the data.
 
     Vector<double, 2> center(-dx, -dy);
 
     //TCLEAR(moo); TSTART(moo);
+    #pragma omp parallel for
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
@@ -83,7 +149,7 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
         vis_real[i] = vis_real_temp;
         vis_imag[i] = vis_imag_temp;
     }
-    //TSTOP(moo);
+
     //printf("%f\n", TGIVE(moo));
 
     // Clean up.
@@ -94,6 +160,12 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
 void trift_extended(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, double dx, 
         double dy, int nthreads) {
+
+    #ifdef _OPENMP
+    // Use only 1 thread first, otherwise Delaunator could have a segfault.
+
+    omp_set_num_threads(1);
+    #endif
 
     // Set up the coordinates for the triangulation.
 
@@ -108,16 +180,43 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
 
     delaunator::Delaunator d(coords);
 
+    #ifdef _OPENMP
+    // Now set to the appropriate number of threads for the remainder of the 
+    // program.
+
+    omp_set_num_threads(nthreads);
+    #endif
+
     // Loop through and take the Fourier transform of each triangle.
     
     std::complex<double> I = std::complex<double>(0., 1.);
     Vector<double, 3> zhat(0., 0., 1.);
 
+    #ifdef _OPENMP
+    double **vis_real_tmp = new double*[nthreads];
+    double **vis_imag_tmp = new double*[nthreads];
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        vis_real_tmp[i] = new double[nu];
+        vis_imag_tmp[i] = new double[nu];
+    }
+    #endif
+
+    #pragma omp parallel
+    {
+    #ifdef _OPENMP
+    int thread_id = omp_get_thread_num();
+
+    for (std::size_t i = 0; i < (std::size_t) nu; i++) {
+        vis_real_tmp[thread_id][i] = 0;
+        vis_imag_tmp[thread_id][i] = 0;
+    }
+    #endif
+
     Vector<std::complex<double>, 3> *integral_part1 = new 
             Vector<std::complex<double>,3>[nu];
     std::complex<double> *integral_part2 = new std::complex<double>[nu];
 
-    //TCREATE(moo); TCLEAR(moo);
+    #pragma omp for
     for (std::size_t i = 0; i < d.triangles.size(); i+=3) {
         // Calculate the area of the triangle.
 
@@ -132,7 +231,6 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
 
         // Precompute some aspects of the integral that remain the same.
 
-        //TSTART(moo);
         for (int m = 0; m < 3; m++) {
             // Get the appropriate vertices.
 
@@ -180,7 +278,6 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
                 integral_part2[k] += -I*bessel0_prefix3 * bessel0 * exp_part;
             }
         }
-        //TSTOP(moo);
 
         // Now loop through an do the actual calculation.
 
@@ -207,12 +304,21 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
             // Finally put into the real and imaginary components.
 
             for (std::size_t k = 0; k < (std::size_t) nu; k++) {
-                vis_real[k] += (intensity * zhat_cross_ln1.dot(
+                #ifdef _OPENMP
+                vis_real_tmp[thread_id][k] += (intensity * zhat_cross_ln1.dot(
                         integral_part1[k]+rn1*integral_part2[k]) / 
                         (2.*Area)).real();
-                vis_imag[k] += (intensity * zhat_cross_ln1.dot(
+                vis_imag_tmp[thread_id][k] += (intensity * zhat_cross_ln1.dot(
                         integral_part1[k]+rn1*integral_part2[k]) / 
                         (2.*Area)).imag();
+                #else
+                vis_real[k] += (intensity * zhat_cross_ln1.dot(
+                        integral_part1[k]+rn1*integral_part2[k]) /
+                        (2.*Area)).real();
+                vis_imag[k] += (intensity * zhat_cross_ln1.dot(
+                        integral_part1[k]+rn1*integral_part2[k]) /
+                        (2.*Area)).imag();
+                #endif
             }
         }
 
@@ -223,16 +329,36 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
             integral_part2[k] = 0.;
         }
     }
-    //printf("%f\n", TGIVE(moo));
 
     // Clean up.
 
     delete[] integral_part1; delete [] integral_part2;
+    }
+
+    #ifdef _OPENMP
+    // Now add together all of the separate vis'.
+
+    #pragma omp parallel for
+    for (std::size_t i = 0; i < (std::size_t) nu; i++) {
+        for (std::size_t j = 0; j < (std::size_t) nthreads; j++) {
+            vis_real[i] += vis_real_tmp[j][i];
+            vis_imag[i] += vis_imag_tmp[j][i];
+        }
+    }
+
+    // And clean up the tmp arrays.
+    
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        delete[] vis_real_tmp[i]; delete[] vis_imag_tmp[i];
+    }
+    delete[] vis_real_tmp; delete[] vis_imag_tmp;
+    #endif
 
     // Do the centering of the data.
 
     Vector<double, 2> center(-dx, -dy);
 
+    #pragma omp parallel for
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
@@ -250,6 +376,12 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, int nv,
         double dx, double dy, int nthreads) {
 
+    #ifdef _OPENMP
+    // Use only 1 thread first, otherwise Delaunator could have a segfault.
+
+    omp_set_num_threads(1);
+    #endif
+
     // Set up the coordinates for the triangulation.
     
     std::vector<double> coords;
@@ -263,12 +395,41 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
 
     delaunator::Delaunator d(coords);
 
+    #ifdef _OPENMP
+    // Now set to the appropriate number of threads for the remainder of the 
+    // program.
+
+    omp_set_num_threads(nthreads);
+    #endif
+
     // Loop through and take the Fourier transform of each triangle.
     
     Vector<double, 3> zhat(0., 0., 1.);
 
+    #ifdef _OPENMP
+    double **vis_real_tmp = new double*[nthreads];
+    double **vis_imag_tmp = new double*[nthreads];
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        vis_real_tmp[i] = new double[nu*nv];
+        vis_imag_tmp[i] = new double[nu*nv];
+    }
+    #endif
+
+    #pragma omp parallel
+    {
+    #ifdef _OPENMP
+    int thread_id = omp_get_thread_num();
+
+
+    for (std::size_t i = 0; i < (std::size_t) nu*nv; i++) {
+        vis_real_tmp[thread_id][i] = 0;
+        vis_imag_tmp[thread_id][i] = 0;
+    }
+    #endif
+
     double *intensity_triangle = new double[nv];
 
+    #pragma omp for
     for (std::size_t i = 0; i < d.triangles.size(); i+=3) {
         // Get the intensity of the triangle at each wavelength.
 
@@ -309,26 +470,56 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
                 std::size_t idy = k * nv;
 
                 for (std::size_t l = 0; l < (std::size_t) nv; l++) {
-                    vis_real[idy+l] += intensity_triangle[l] * 
+                    #ifdef _OPENMP
+                    vis_real_tmp[thread_id][idy+l] += intensity_triangle[l] * 
                         ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
                         FastCos(rn_dot_uv);
-                    vis_imag[idy+l] += intensity_triangle[l] * 
+                    vis_imag_tmp[thread_id][idy+l] += intensity_triangle[l] * 
                         ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
                         -FastSin(rn_dot_uv);
+                    #else
+                    vis_real[idy+l] += intensity_triangle[l] *
+                        ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) *
+                        FastCos(rn_dot_uv);
+                    vis_imag[idy+l] += intensity_triangle[l] *
+                        ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) *
+                        -FastSin(rn_dot_uv);
+                    #endif
                 }
             }
         }
     }
+    delete[] intensity_triangle;
+    }
+
+    #ifdef _OPENMP
+    // Now add together all of the separate vis'.
+
+    #pragma omp parallel for
+    for (std::size_t i = 0; i < (std::size_t) nu*nv; i++) {
+        for (std::size_t j = 0; j < (std::size_t) nthreads; j++) {
+            vis_real[i] += vis_real_tmp[j][i];
+            vis_imag[i] += vis_imag_tmp[j][i];
+        }
+    }
+
+    // And clean up the tmp arrays.
+    
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        delete[] vis_real_tmp[i]; delete[] vis_imag_tmp[i];
+    }
+    delete[] vis_real_tmp; delete[] vis_imag_tmp;
+    #endif
 
     // Do the centering of the data.
 
     Vector<double, 2> center(-dx, -dy);
 
     //TCLEAR(moo); TSTART(moo);
+    #pragma omp parallel for collapse(2)
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
-        Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
-
         for (std::size_t j = 0; j < (std::size_t) nv; j++) {
+            Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
             double vis_real_temp = vis_real[i*nv+j]*cos(center.dot(uv)) - 
                 vis_imag[i*nv+j]*sin(center.dot(uv));
@@ -345,12 +536,17 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
     // Clean up.
 
     //delete[] rn_dot_uv; delete[] sin_rn_dot_uv; delete[] cos_rn_dot_uv;
-    delete[] intensity_triangle;
 }
 
 void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
         double *vis_real, double *vis_imag, int nx, int nu, int nv,
         double dx, double dy, int nthreads) {
+
+    #ifdef _OPENMP
+    // Use only 1 thread first, otherwise Delaunator could have a segfault.
+
+    omp_set_num_threads(1);
+    #endif
 
     // Set up the coordinates for the triangulation.
 
@@ -365,16 +561,44 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
 
     delaunator::Delaunator d(coords);
 
+    #ifdef _OPENMP
+    // Now set to the appropriate number of threads for the remainder of the 
+    // program.
+
+    omp_set_num_threads(nthreads);
+    #endif
+
     // Loop through and take the Fourier transform of each triangle.
     
     std::complex<double> I = std::complex<double>(0., 1.);
     Vector<double, 3> zhat(0., 0., 1.);
 
+    #ifdef _OPENMP
+    double **vis_real_tmp = new double*[nthreads];
+    double **vis_imag_tmp = new double*[nthreads];
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        vis_real_tmp[i] = new double[nu*nv];
+        vis_imag_tmp[i] = new double[nu*nv];
+    }
+    #endif
+
+    #pragma omp parallel
+    {
+    #ifdef _OPENMP
+    int thread_id = omp_get_thread_num();
+
+
+    for (std::size_t i = 0; i < (std::size_t) nu*nv; i++) {
+        vis_real_tmp[thread_id][i] = 0;
+        vis_imag_tmp[thread_id][i] = 0;
+    }
+    #endif
+
     Vector<std::complex<double>, 3> *integral_part1 = new 
             Vector<std::complex<double>,3>[nu];
     std::complex<double> *integral_part2 = new std::complex<double>[nu];
 
-    //TCREATE(moo); TCLEAR(moo);
+    #pragma omp for
     for (std::size_t i = 0; i < d.triangles.size(); i+=3) {
         // Calculate the area of the triangle.
 
@@ -389,7 +613,6 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
 
         // Precompute some aspects of the integral that remain the same.
 
-        //TSTART(moo);
         for (int m = 0; m < 3; m++) {
             // Get the appropriate vertices.
 
@@ -437,7 +660,6 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
                 integral_part2[k] += -I*bessel0_prefix3 * bessel0 * exp_part;
             }
         }
-        //TSTOP(moo);
 
         // Now loop through an do the actual calculation.
 
@@ -465,12 +687,21 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
                 std::size_t idy = k * nv;
 
                 for (std::size_t l = 0; l < (std::size_t) nv; l++) {
-                    vis_real[idy+l] += (flux[d.triangles[i+j]*nv+l] * 
+                    #ifdef _OPENMP
+                    vis_real_tmp[thread_id][idy+l] += (flux[d.triangles[i+j]*
+                            nv+l] * zhat_cross_ln1.dot(integral_part1[k]+rn1*
+                            integral_part2[k]) / (2.*Area)).real();
+                    vis_imag_tmp[thread_id][idy+l] += (flux[d.triangles[i+j]*
+                            nv+l] * zhat_cross_ln1.dot(integral_part1[k]+rn1*
+                            integral_part2[k]) / (2.*Area)).imag();
+                    #else
+                    vis_real[idy+l] += (flux[d.triangles[i+j]*nv+l] *
                             zhat_cross_ln1.dot(integral_part1[k]+rn1*
                             integral_part2[k]) / (2.*Area)).real();
-                    vis_imag[idy+l] += (flux[d.triangles[i+j]*nv+l] * 
+                    vis_imag[idy+l] += (flux[d.triangles[i+j]*nv+l] *
                             zhat_cross_ln1.dot(integral_part1[k]+rn1*
                             integral_part2[k]) / (2.*Area)).imag();
+                    #endif
                 }
             }
         }
@@ -482,16 +713,35 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
             integral_part2[k] = 0.;
         }
     }
-    //printf("%f\n", TGIVE(moo));
-
     // Clean up.
 
     delete[] integral_part1; delete [] integral_part2;
+    }
+
+    #ifdef _OPENMP
+    // Now add together all of the separate vis'.
+
+    #pragma omp parallel for
+    for (std::size_t i = 0; i < (std::size_t) nu*nv; i++) {
+        for (std::size_t j = 0; j < (std::size_t) nthreads; j++) {
+            vis_real[i] += vis_real_tmp[j][i];
+            vis_imag[i] += vis_imag_tmp[j][i];
+        }
+    }
+
+    // And clean up the tmp arrays.
+    
+    for (std::size_t i = 0; i < (std::size_t) nthreads; i++) {
+        delete[] vis_real_tmp[i]; delete[] vis_imag_tmp[i];
+    }
+    delete[] vis_real_tmp; delete[] vis_imag_tmp;
+    #endif
 
     // Do the centering of the data.
 
     Vector<double, 2> center(-dx, -dy);
 
+    #pragma omp parallel for
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
@@ -507,5 +757,3 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
         }
     }
 }
-
-#endif
