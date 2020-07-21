@@ -4,9 +4,38 @@
 #include "fastmath.h"
 #include <unordered_map>
 
-void trift(double *x, double *y, double *flux, double *u, double *v,
-        double *vis_real, double *vis_imag, int nx, int nu, double dx, 
-        double dy, int nthreads) {
+py::array_t<std::complex<double>> trift(py::array_t<double> _x,
+        py::array_t<double> _y, py::array_t<double> _flux,
+        py::array_t<double> _u, py::array_t<double> _v, double dx, double dy,
+        int nthreads) {
+
+    // Convert from Python to C++ useful things.
+
+    auto x_buf = _x.request(); auto y_buf = _y.request();
+    auto flux_buf = _flux.request(); auto u_buf = _u.request();
+    auto v_buf = _v.request();
+
+    if (x_buf.ndim != 1 || y_buf.ndim != 1 || flux_buf.ndim != 1 ||
+            u_buf.ndim != 1 || v_buf.ndim != 1)
+        throw std::runtime_error("Number of dimensions must be one");
+
+    int nx = x_buf.shape[0]; int nu = u_buf.shape[0];
+
+    double *x = (double *) x_buf.ptr,
+           *y = (double *) y_buf.ptr,
+           *flux = (double *) flux_buf.ptr,
+           *u = (double *) u_buf.ptr,
+           *v = (double *) v_buf.ptr;
+
+    // Setup the resulting array.
+
+    auto _vis = py::array_t<std::complex<double>>(nu);
+
+    auto vis_buf = _vis.request();
+    std::complex<double> *vis = (std::complex<double> *) vis_buf.ptr;
+
+    for (int i=0; i < nu; i++)
+        vis[i] = 0;
 
     // Set up the coordinates for the triangulation.
 
@@ -23,6 +52,7 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
 
     // Loop through and take the Fourier transform of each triangle.
     
+    std::complex<double> I = std::complex<double>(0., 1.);
     Vector<double, 3> zhat(0., 0., 1.);
 
     for (std::size_t k = 0; k < (std::size_t) nu; k++) {
@@ -57,10 +87,9 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
                 double ln_1_dot_zhat_cross_ln = ln_1.dot(zhat.cross(ln));
                 double rn_dot_uv = rn.dot(uv);
                 
-                vis_real[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
-                    (ln.dot(uv) * ln_1.dot(uv)) * FastCos(rn_dot_uv);
-                vis_imag[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
-                    (ln.dot(uv) * ln_1.dot(uv)) * -FastSin(rn_dot_uv);
+                vis[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
+                        (ln.dot(uv) * ln_1.dot(uv)) * (FastCos(rn_dot_uv) - 
+                        I*FastSin(rn_dot_uv));
             }
         }
     }
@@ -72,19 +101,44 @@ void trift(double *x, double *y, double *flux, double *u, double *v,
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
-        double vis_real_temp = vis_real[i]*cos(center.dot(uv)) - vis_imag[i]*
-            sin(center.dot(uv));
-        double vis_imag_temp = vis_real[i]*sin(center.dot(uv)) + vis_imag[i]*
-            cos(center.dot(uv));
-
-        vis_real[i] = vis_real_temp;
-        vis_imag[i] = vis_imag_temp;
+        vis[i] = vis[i] * (cos(center.dot(uv)) - I*sin(center.dot(uv)));
     }
+
+    return _vis;
 }
 
-void trift_extended(double *x, double *y, double *flux, double *u, double *v,
-        double *vis_real, double *vis_imag, int nx, int nu, double dx, 
-        double dy, int nthreads) {
+py::array_t<std::complex<double>> trift_extended(py::array_t<double> _x,
+        py::array_t<double> _y, py::array_t<double> _flux,
+        py::array_t<double> _u, py::array_t<double> _v, double dx, double dy,
+        int nthreads) {
+
+    // Convert from Python to C++ useful things.
+
+    auto x_buf = _x.request(); auto y_buf = _y.request();
+    auto flux_buf = _flux.request(); auto u_buf = _u.request();
+    auto v_buf = _v.request();
+
+    if (x_buf.ndim != 1 || y_buf.ndim != 1 || flux_buf.ndim != 1 ||
+            u_buf.ndim != 1 || v_buf.ndim != 1)
+        throw std::runtime_error("Number of dimensions must be one");
+
+    int nx = x_buf.shape[0]; int nu = u_buf.shape[0];
+
+    double *x = (double *) x_buf.ptr,
+           *y = (double *) y_buf.ptr,
+           *flux = (double *) flux_buf.ptr,
+           *u = (double *) u_buf.ptr,
+           *v = (double *) v_buf.ptr;
+
+    // Setup the resulting array.
+
+    auto _vis = py::array_t<std::complex<double>>(nu);
+
+    auto vis_buf = _vis.request();
+    std::complex<double> *vis = (std::complex<double> *) vis_buf.ptr;
+
+    for (int i=0; i < nu; i++)
+        vis[i] = 0;
 
     // Set up the coordinates for the triangulation.
 
@@ -197,10 +251,8 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
 
                 // Finally put into the real and imaginary components.
 
-                vis_real[k] += (intensity * zhat_cross_ln1.dot(integral_part1+
-                        rn1*integral_part2) / (2.*Area)).real();
-                vis_imag[k] += (intensity * zhat_cross_ln1.dot(integral_part1+
-                        rn1*integral_part2) / (2.*Area)).imag();
+                vis[k] += intensity * zhat_cross_ln1.dot(integral_part1+
+                        rn1*integral_part2) / (2.*Area);
             }
         }
     }
@@ -212,19 +264,46 @@ void trift_extended(double *x, double *y, double *flux, double *u, double *v,
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
-        double vis_real_temp = vis_real[i]*cos(center.dot(uv)) - vis_imag[i]*
-            sin(center.dot(uv));
-        double vis_imag_temp = vis_real[i]*sin(center.dot(uv)) + vis_imag[i]*
-            cos(center.dot(uv));
-
-        vis_real[i] = vis_real_temp;
-        vis_imag[i] = vis_imag_temp;
+        vis[i] = vis[i] * (cos(center.dot(uv)) - I*sin(center.dot(uv)));
     }
+
+    return _vis;
 }
 
-void trift2D(double *x, double *y, double *flux, double *u, double *v,
-        double *vis_real, double *vis_imag, int nx, int nu, int nv,
-        double dx, double dy, int nthreads) {
+py::array_t<std::complex<double>> trift2D(py::array_t<double> _x,
+        py::array_t<double> _y, py::array_t<double> _flux,
+        py::array_t<double> _u, py::array_t<double> _v, double dx, double dy,
+        int nthreads) {
+
+    // Convert from Python to C++ useful things.
+
+    auto x_buf = _x.request(); auto y_buf = _y.request();
+    auto flux_buf = _flux.request(); auto u_buf = _u.request();
+    auto v_buf = _v.request();
+
+    if (x_buf.ndim != 1 || y_buf.ndim != 1 || flux_buf.ndim != 2 ||
+            u_buf.ndim != 1 || v_buf.ndim != 1)
+        throw std::runtime_error("Number of dimensions must be one");
+
+    int nx = x_buf.shape[0]; int nu = u_buf.shape[0];
+    int nv = flux_buf.shape[1];
+
+    double *x = (double *) x_buf.ptr,
+           *y = (double *) y_buf.ptr,
+           *flux = (double *) flux_buf.ptr,
+           *u = (double *) u_buf.ptr,
+           *v = (double *) v_buf.ptr;
+
+    // Setup the resulting array.
+
+    auto _vis = py::array_t<std::complex<double>>(nu*nv);
+    _vis.resize({nu, nv});
+
+    auto vis_buf = _vis.request();
+    std::complex<double> *vis = (std::complex<double> *) vis_buf.ptr;
+
+    for (int i=0; i < nu*nv; i++)
+        vis[i] = 0;
 
     // Set up the coordinates for the triangulation.
     
@@ -241,6 +320,7 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
 
     // Loop through and take the Fourier transform of each triangle.
     
+    std::complex<double> I = std::complex<double>(0., 1.);
     Vector<double, 3> zhat(0., 0., 1.);
 
     for (std::size_t k = 0; k < (std::size_t) nu; k++) {
@@ -285,12 +365,9 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
                 std::size_t idy = k * nv;
 
                 for (std::size_t l = 0; l < (std::size_t) nv; l++) {
-                    vis_real[idy+l] += intensity_triangle[l] * 
+                    vis[idy+l] += intensity_triangle[l] * 
                         ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
-                        FastCos(rn_dot_uv);
-                    vis_imag[idy+l] += intensity_triangle[l] * 
-                        ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
-                        -FastSin(rn_dot_uv);
+                        (FastCos(rn_dot_uv) - I*FastSin(rn_dot_uv));
                 }
             }
         }
@@ -308,21 +385,48 @@ void trift2D(double *x, double *y, double *flux, double *u, double *v,
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
         for (std::size_t j = 0; j < (std::size_t) nv; j++) {
-
-            double vis_real_temp = vis_real[i*nv+j]*cos(center.dot(uv)) - 
-                vis_imag[i*nv+j]*sin(center.dot(uv));
-            double vis_imag_temp = vis_real[i*nv+j]*sin(center.dot(uv)) + 
-                vis_imag[i*nv+j]*cos(center.dot(uv));
-
-            vis_real[i*nv+j] = vis_real_temp;
-            vis_imag[i*nv+j] = vis_imag_temp;
+            vis[i*nv+j] = vis[i*nv+j] * (cos(center.dot(uv)) - 
+                I*sin(center.dot(uv)));
         }
     }
+
+    return _vis;
 }
 
-void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
-        double *vis_real, double *vis_imag, int nx, int nu, int nv,
-        double dx, double dy, int nthreads) {
+py::array_t<std::complex<double>> trift2D_extended(py::array_t<double> _x,
+        py::array_t<double> _y, py::array_t<double> _flux,
+        py::array_t<double> _u, py::array_t<double> _v, double dx, double dy,
+        int nthreads) {
+
+    // Convert from Python to C++ useful things.
+
+    auto x_buf = _x.request(); auto y_buf = _y.request();
+    auto flux_buf = _flux.request(); auto u_buf = _u.request();
+    auto v_buf = _v.request();
+
+    if (x_buf.ndim != 1 || y_buf.ndim != 1 || flux_buf.ndim != 2 ||
+            u_buf.ndim != 1 || v_buf.ndim != 1)
+        throw std::runtime_error("Number of dimensions must be one");
+
+    int nx = x_buf.shape[0]; int nu = u_buf.shape[0];
+    int nv = flux_buf.shape[1];
+
+    double *x = (double *) x_buf.ptr,
+           *y = (double *) y_buf.ptr,
+           *flux = (double *) flux_buf.ptr,
+           *u = (double *) u_buf.ptr,
+           *v = (double *) v_buf.ptr;
+
+    // Setup the resulting array.
+
+    auto _vis = py::array_t<std::complex<double>>(nu*nv);
+    _vis.resize({nu, nv});
+
+    auto vis_buf = _vis.request();
+    std::complex<double> *vis = (std::complex<double> *) vis_buf.ptr;
+
+    for (int i=0; i < nu*nv; i++)
+        vis[i] = 0;
 
     // Set up the coordinates for the triangulation.
 
@@ -436,12 +540,9 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
                 std::size_t idy = k * nv;
 
                 for (std::size_t l = 0; l < (std::size_t) nv; l++) {
-                    vis_real[idy+l] += (flux[d.triangles[i+j]*nv+l] * 
+                    vis[idy+l] += flux[d.triangles[i+j]*nv+l] * 
                             zhat_cross_ln1.dot(integral_part1+rn1*
-                            integral_part2) / (2.*Area)).real();
-                    vis_imag[idy+l] += (flux[d.triangles[i+j]*nv+l] * 
-                            zhat_cross_ln1.dot(integral_part1+rn1*
-                            integral_part2) / (2.*Area)).imag();
+                            integral_part2) / (2.*Area);
                 }
             }
         }
@@ -455,14 +556,10 @@ void trift2D_extended(double *x, double *y, double *flux, double *u, double *v,
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
         for (std::size_t j = 0; j < (std::size_t) nv; j++) {
-
-            double vis_real_temp = vis_real[i*nv+j]*cos(center.dot(uv)) - 
-                vis_imag[i*nv+j]*sin(center.dot(uv));
-            double vis_imag_temp = vis_real[i*nv+j]*sin(center.dot(uv)) + 
-                vis_imag[i*nv+j]*cos(center.dot(uv));
-
-            vis_real[i*nv+j] = vis_real_temp;
-            vis_imag[i*nv+j] = vis_imag_temp;
+            vis[i*nv+j] = vis[i*nv+j] * (cos(center.dot(uv)) - 
+                I*sin(center.dot(uv)));
         }
     }
+
+    return _vis;
 }
