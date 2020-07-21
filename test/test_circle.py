@@ -50,12 +50,12 @@ u = numpy.linspace(0.001,10.,1000)
 v = numpy.repeat(0., 1000)
 
 t1 = time.time()
-vis = trift.trift_c(x, y, flux, u, v, 0.25, 0.25, nthreads=4)
+vis = trift.trift(x, y, flux, u, v, 0.25, 0.25, nthreads=4)
 t2 = time.time()
 print(t2 - t1)
 
 t1 = time.time()
-vis_extended = trift.trift_cextended(x, y, flux, u, v, 0.25, 0.25, nthreads=4)
+vis_extended = trift.trift_extended(x, y, flux, u, v, 0.25, 0.25, nthreads=4)
 t2 = time.time()
 print(t2 - t1)
 
