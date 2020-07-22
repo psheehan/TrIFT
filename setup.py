@@ -54,10 +54,11 @@ class build_ext(_build_ext):
         # Add link args, if appropriate.
 
         for ext in self.extensions:
-            ext.extra_link_args += ["-mmacosx-version-min=10.9",
-                    "-march=native"]
+            ext.extra_link_args += ["-march=native"]
             if has_flag(self.compiler, "-fopenmp"):
                 ext.extra_link_args += ["-fopenmp"]
+            if has_flag(self.compiler, "-mmacosx-version-min=10.9"):
+                ext.extra_link_args += ["-mmacosx-version-min=10.9"]
 
         # Run the standard build procedure.
 
