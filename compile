@@ -3,5 +3,6 @@ rm trift/trift.*.so
 python3 setup.py build_ext --inplace
 
 rm -r build/
+rm -r var/
 rm trift/*.cpp
 rm trift/*/*.cpp
