@@ -13,6 +13,8 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
         py::array_t<double> _u, py::array_t<double> _v, double dx, double dy, 
         int nthreads) {
 
+    py::gil_scoped_acquire acquire;
+
     // Convert from Python to C++ useful things.
     
     auto x_buf = _x.request(); auto y_buf = _y.request(); 
@@ -168,6 +170,8 @@ py::array_t<std::complex<double>> trift_extended(py::array_t<double> _x,
         py::array_t<double> _y, py::array_t<double> _flux, 
         py::array_t<double> _u, py::array_t<double> _v, double dx, double dy, 
         int nthreads) {
+
+    py::gil_scoped_acquire acquire;
 
     // Convert from Python to C++ useful things.
     
@@ -394,6 +398,8 @@ py::array_t<std::complex<double>> trift2D(py::array_t<double> _x,
         py::array_t<double> _u, py::array_t<double> _v, double dx, double dy, 
         int nthreads) {
 
+    py::gil_scoped_acquire acquire;
+
     // Convert from Python to C++ useful things.
     
     auto x_buf = _x.request(); auto y_buf = _y.request(); 
@@ -568,6 +574,8 @@ py::array_t<std::complex<double>> trift2D_extended(py::array_t<double> _x,
         py::array_t<double> _u, py::array_t<double> _v, double dx, double dy, 
         int nthreads) {
 
+    py::gil_scoped_acquire acquire;
+
     // Convert from Python to C++ useful things.
     
     auto x_buf = _x.request(); auto y_buf = _y.request(); 
@@ -630,7 +638,7 @@ py::array_t<std::complex<double>> trift2D_extended(py::array_t<double> _x,
     Vector<double, 3> zhat(0., 0., 1.);
 
     #ifdef _OPENMP
-    std::complex<double> **vis_imag_tmp = new std::complex<double>*[nthreads];
+    std::complex<double> **vis_tmp = new std::complex<double>*[nthreads];
     for (std::size_t i = 0; i < (std::size_t) nthreads; i++)
         vis_tmp[i] = new std::complex<double>[nu*nv];
     #endif
