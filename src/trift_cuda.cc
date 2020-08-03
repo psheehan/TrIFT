@@ -101,7 +101,7 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
-        vis[i] = vis[i] * (cos(center.dot(uv)) - I*sin(center.dot(uv)));
+        vis[i] = vis[i] * (cos(center.dot(uv)) + I*sin(center.dot(uv)));
     }
 
     return _vis;
@@ -264,7 +264,7 @@ py::array_t<std::complex<double>> trift_extended(py::array_t<double> _x,
     for (std::size_t i = 0; i < (std::size_t) nu; i++) {
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
-        vis[i] = vis[i] * (cos(center.dot(uv)) - I*sin(center.dot(uv)));
+        vis[i] = vis[i] * (cos(center.dot(uv)) + I*sin(center.dot(uv)));
     }
 
     return _vis;
@@ -385,7 +385,7 @@ py::array_t<std::complex<double>> trift2D(py::array_t<double> _x,
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
         for (std::size_t j = 0; j < (std::size_t) nv; j++) {
-            vis[i*nv+j] = vis[i*nv+j] * (cos(center.dot(uv)) - 
+            vis[i*nv+j] = vis[i*nv+j] * (cos(center.dot(uv)) + 
                 I*sin(center.dot(uv)));
         }
     }
@@ -556,7 +556,7 @@ py::array_t<std::complex<double>> trift2D_extended(py::array_t<double> _x,
         Vector <double, 2> uv(2*pi*u[i], 2*pi*v[i]);
 
         for (std::size_t j = 0; j < (std::size_t) nv; j++) {
-            vis[i*nv+j] = vis[i*nv+j] * (cos(center.dot(uv)) - 
+            vis[i*nv+j] = vis[i*nv+j] * (cos(center.dot(uv)) + 
                 I*sin(center.dot(uv)));
         }
     }
