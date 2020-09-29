@@ -610,7 +610,7 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
     return _vis;
 }
 
-PYBIND11_MODULE(trift, m) {
+PYBIND11_MODULE(cpu, m) {
     m.def("trift", [](py::array_t<double> x, py::array_t<double> y, 
                 py::array_t<double> flux, py::array_t<double> u, 
                 py::array_t<double> v, double dx, double dy, int nthreads, 

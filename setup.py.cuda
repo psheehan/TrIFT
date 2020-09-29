@@ -125,7 +125,7 @@ except AttributeError:
 
 
 
-trift = Extension("trift.trift", sources=["src/trift.cu"], language="c++",
+cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
         library_dirs=[CUDA['lib64']],
         libraries=['cudart'],
         runtime_library_dirs=[CUDA['lib64']],
@@ -147,7 +147,7 @@ setup(name="trift",
         author_email="psheehan@northwestern.edu",
         py_modules=["trift"], 
         package_dir={'': ''},
-        ext_modules=[trift],
+        ext_modules=[cuda],
         description="Fourier transform of unstructured images.",
         include_dirs=[numpy_include,os.path.join("include"),
             pybind11.get_include(False),pybind11.get_include(True),

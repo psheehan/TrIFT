@@ -1,4 +1,2 @@
-from .trift import trift
-#from .trift import trift_extended
-#from .trift import trift2D
-#from .trift import trift2D_extended
+from . import cpu
+from . import cuda
