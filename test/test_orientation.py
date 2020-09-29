@@ -78,7 +78,7 @@ u, v = numpy.meshgrid(numpy.linspace(-3.,3.,100),numpy.linspace(-3.,3.,100))
 u = u.reshape((u.size,))
 v = v.reshape((v.size,))
 
-vis = trift.trift_cextended(x, y, flux, u, v, 0., 0.)
+vis = trift.cpu.trift(x, y, flux, u, v, 0., 0., mode="extended")
 
 # Do the Fourier transform with GALARIO.
 

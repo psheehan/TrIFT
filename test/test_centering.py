@@ -33,14 +33,14 @@ u, v = numpy.meshgrid(numpy.linspace(-3.,3.,100),numpy.linspace(-3.,3.,100))
 u = u.reshape((u.size,))
 v = v.reshape((v.size,))
 
-vis = trift.trift_cextended(x, y, flux, u, v, 0.5, 0.25)
+vis = trift.cpu.trift(x, y, flux, u, v, 0.5, 0.25, mode="extended")
 
 # Now shift the image manually.
 
 x += 0.5
 y += 0.25
 
-vvis = trift.trift_cextended(x, y, flux, u, v, 0., 0.)
+vvis = trift.cpu.trift(x, y, flux, u, v, 0., 0., mode="extended")
 
 # Plot the image to make sure we did the correct shifting.
 
