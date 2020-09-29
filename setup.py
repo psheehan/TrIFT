@@ -148,7 +148,11 @@ class cuda_build_ext(build_ext):
         build_ext.build_extensions(self)
 
 # Locate CUDA paths
-CUDA = locate_cuda()
+try:
+    CUDA = locate_cuda()
+    cuda_found = True
+except:
+    cuda_found = False
 
 # Obtain the numpy include directory. This logic works across numpy versions.
 try:
@@ -179,12 +183,16 @@ cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
                 '--compiler-options', "'-fPIC'"]},
         extra_link_args=['-lcudadevrt', '-lcudart'])
 
+extensions = [cpu]
+if cuda_found:
+    extensions.append(cuda)
+
 setup(name="trift", 
         version="0.9.0", 
         author="Patrick Sheehan",
         author_email="psheehan@northwestern.edu",
         packages=["trift"],
-        ext_modules=[cpu, cuda],
+        ext_modules=extensions,
         description="Fourier transform of unstructured images.",
         install_requires=["numpy>=1.8.0","pybind11"],
         cmdclass=dict(build_ext=cuda_build_ext),
