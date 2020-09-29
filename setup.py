@@ -1,10 +1,11 @@
-import os
-import sys
-from os.path import join
-from setuptools import setup, find_packages
-from distutils.command.build_ext import build_ext
-from distutils.extension import Extension
-import numpy as np
+import os, sys
+import tempfile
+
+import setuptools
+from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+
+import numpy
 import pybind11
 
 # CUDA compilation is adapted from the source
@@ -18,10 +19,23 @@ def find_in_path(name, path):
     #adapted fom 
     #http://code.activestate.com/recipes/52224-find-a-file-given-a-search-path/
     for dir in path.split(os.pathsep):
-        binpath = join(dir, name)
+        binpath = os.path.join(dir, name)
         if os.path.exists(binpath):
             return os.path.abspath(binpath)
     return None
+
+def has_flag(compiler, flagname):
+    """Return a boolean indicating whether a flag name is supported on
+    the specified compiler.
+    Borrowed from the george package.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".cpp") as f:
+        f.write("int main (int argc, char **argv) { return 0; }")
+        try:
+            compiler.compile([f.name], extra_postargs=[flagname])
+        except setuptools.distutils.errors.CompileError:
+            return False
+    return True
 
 def locate_cuda():
     """
@@ -35,7 +49,7 @@ def locate_cuda():
     # first check if the CUDAHOME env variable is in use
     if 'CUDAHOME' in os.environ:
         home = os.environ['CUDAHOME']
-        nvcc = join(home, 'bin', 'nvcc')
+        nvcc = os.path.join(home, 'bin', 'nvcc')
     else:
         # otherwise, search the PATH for NVCC
         nvcc = find_in_path('nvcc', os.environ['PATH'])
@@ -47,8 +61,8 @@ def locate_cuda():
     cudaconfig = {
             'home': home, 
             'nvcc': nvcc, 
-            'include': join(home, 'include'), 
-            'lib64': join(home, 'lib64')}
+            'include': os.path.join(home, 'include'), 
+            'lib64': os.path.join(home, 'lib64')}
     
     for k, v in iter(cudaconfig.items()):
         if not os.path.exists(v):
@@ -98,32 +112,60 @@ def customize_compiler_for_nvcc(self):
 # run the customize_compiler
 class cuda_build_ext(build_ext):
     def build_extensions(self):
-        customize_compiler_for_nvcc(self.compiler)
-        build_ext.build_extensions(self)
+        # Get the include directories.
 
-def find_files_with_ext(path, ext):
-    files_list = list()
-    for root, dirs, files in os.walk(path):
-        for name in files:
-            try:
-                current_ext = name.split(".")[-1]
-            except IndexError:
-                continue
-            
-            if current_ext == ext:
-                files_list.append(join(root, name))
-    return files_list
+        include_dirs=[os.path.join("include"), 
+                os.path.join("delaunator-cpp","include"),
+                numpy_include, 
+                CUDA['include'], 
+                pybind11.get_include(False),
+                pybind11.get_include(True),
+        ]
+
+        for ext in self.extensions:
+            ext.include_dirs = include_dirs + ext.include_dirs
+
+        # Get the proper flags.
+
+        for ext in self.extensions:
+            for flag in ext.extra_compile_args['gcc']:
+                if not has_flag(self.compiler, flag):
+                    ext.extra_compile_args['gcc'].remove(flag)
+
+        # Get the proper links.
+
+        for ext in self.extensions:
+            for flag in ext.extra_link_args:
+                if not has_flag(self.compiler, flag):
+                    ext.extra_link_args.remove(flag)
+
+        # Make sure that .cu files are an allowed type to compile.
+
+        customize_compiler_for_nvcc(self.compiler)
+
+        # Now run the standard build procedure.
+
+        build_ext.build_extensions(self)
 
 # Locate CUDA paths
 CUDA = locate_cuda()
 
 # Obtain the numpy include directory. This logic works across numpy versions.
 try:
-    numpy_include = np.get_include()
+    numpy_include = numpy.get_include()
 except AttributeError:
-    numpy_include = np.get_numpy_include()
+    numpy_include = numpy.get_numpy_include()
 
 
+cpu = Extension("trift.cpu", sources=["src/trift.cc"], language="c++",
+        extra_compile_args={
+            'gcc': ['-std=c++11','-stdlib=libc++','-Ofast',"-funroll-loops",\
+                "-Wno-unused-function","-Wno-uninitialized",
+                "-Wno-unused-local-typedefs",'-march=native',
+                '-mmacosx-version-min=10.9','-fopenmp'],
+            'nvcc': []},
+        extra_link_args=["-march=native",'-fopenmp',
+            "-mmacosx-version-min=10.9"])
 
 cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
         library_dirs=[CUDA['lib64']],
@@ -135,23 +177,15 @@ cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
                 '-O3', '-arch=sm_30', '--use_fast_math', 
                 '--ptxas-options=-v', '-c', 
                 '--compiler-options', "'-fPIC'"]},
-        extra_link_args=['-lcudadevrt', '-lcudart'],
-        include_dirs=[numpy_include, CUDA['include'], 'src', 
-            os.path.join("include"), pybind11.get_include(False),
-            pybind11.get_include(True),os.path.join("delaunator-cpp","include"),
-            ])
+        extra_link_args=['-lcudadevrt', '-lcudart'])
 
 setup(name="trift", 
         version="0.9.0", 
         author="Patrick Sheehan",
         author_email="psheehan@northwestern.edu",
-        py_modules=["trift"], 
-        package_dir={'': ''},
-        ext_modules=[cuda],
+        packages=["trift"],
+        ext_modules=[cpu, cuda],
         description="Fourier transform of unstructured images.",
-        include_dirs=[numpy_include,os.path.join("include"),
-            pybind11.get_include(False),pybind11.get_include(True),
-            os.path.join("delaunator-cpp","include")],
         install_requires=["numpy>=1.8.0","pybind11"],
         cmdclass=dict(build_ext=cuda_build_ext),
         zip_safe=False,

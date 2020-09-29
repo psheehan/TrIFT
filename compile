@@ -1,7 +1,6 @@
 rm trift/*.so
 
-python3 setup.py.cuda build_ext --inplace
-python3 setup.py.cpu build_ext --inplace
+python3 setup.py build_ext --inplace
 
 rm -r build/
 rm -r var/
