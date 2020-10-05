@@ -178,7 +178,7 @@ cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
         extra_compile_args={
             'gcc': [],
             'nvcc': [
-                '-O3', '-arch=sm_30', '--use_fast_math', 
+                '-O3', '-arch=sm_75', '--use_fast_math', 
                 '--ptxas-options=-v', '-c', 
                 '--compiler-options', "'-fPIC'"]},
         extra_link_args=['-lcudadevrt', '-lcudart'])
