@@ -432,7 +432,7 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
     cudaMemPrefetchAsync(triangles, nt*sizeof(int), device, NULL);
 
     // Run the kernel on the GPU.
-    int blockSize = 256;
+    int blockSize = 32;
     int numBlocks = (nu + blockSize - 1) / blockSize;
 
     if (flux_buf.ndim == 2) {
