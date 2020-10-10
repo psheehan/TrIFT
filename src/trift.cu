@@ -44,8 +44,8 @@ void ft(double *x, double *y, double *flux, double *u, double *v,
                 double ln_1_dot_zhat_cross_ln = ln_1.dot(zhat.cross(ln));
                 double rn_dot_uv = rn.dot(uv);
 
-                float sinVal, cosVal;
-                __sincosf((float)rn_dot_uv, &sinVal, &cosVal);
+                double sinVal, cosVal;
+                sincos(rn_dot_uv, &sinVal, &cosVal);
 
                 vis[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
                         (ln.dot(uv) * ln_1.dot(uv)) * (cosVal - I*sinVal);
@@ -119,13 +119,13 @@ void ft_extended(double *x, double *y, double *flux, double *u, double *v,
                 Vector<double, 3> bessel0_prefix4 = 2.*uv/uv.dot(uv)*
                         zhat_dot_lm_cross_uv;
 
-                double bessel0 = j0f((float)uv.dot(lm)/2.);
+                double bessel0 = j0(uv.dot(lm)/2.);
 
                 Vector<double, 3> bessel1 = lm * (zhat_dot_lm_cross_uv/2.) * 
-                        j1f((float)uv.dot(lm)/2.);
+                        j1(uv.dot(lm)/2.);
 
-                float sinVal, cosVal;
-                __sincosf((float)r_mc.dot(uv), &sinVal, &cosVal);
+                double sinVal, cosVal;
+                sincos(r_mc.dot(uv), &sinVal, &cosVal);
 
                 thrust::complex<double> exp_part = (cosVal -  
                         I*sinVal) / (uv.dot(uv));
@@ -217,8 +217,8 @@ void ft2D(double *x, double *y, double *flux, double *u, double *v,
                 double ln_1_dot_zhat_cross_ln = ln_1.dot(zhat.cross(ln));
                 double rn_dot_uv = rn.dot(uv);
                 
-                float sinVal, cosVal;
-                __sincosf((float)rn_dot_uv, &sinVal, &cosVal);
+                double sinVal, cosVal;
+                sincos(rn_dot_uv, &sinVal, &cosVal);
 
                 int idy = k * nv;
 
@@ -298,13 +298,13 @@ void ft2D_extended(double *x, double *y, double *flux, double *u, double *v,
                 Vector<double, 3> bessel0_prefix4 = 2.*uv/uv.dot(uv)*
                         zhat_dot_lm_cross_uv;
 
-                double bessel0 = j0f((float)uv.dot(lm)/2.);
+                double bessel0 = j0(uv.dot(lm)/2.);
 
                 Vector<double, 3> bessel1 = lm * (zhat_dot_lm_cross_uv/2.) * 
-                        j1f((float)uv.dot(lm)/2.);
+                        j1(uv.dot(lm)/2.);
 
-                float sinVal, cosVal;
-                __sincosf((float)r_mc.dot(uv), &sinVal, &cosVal);
+                double sinVal, cosVal;
+                sincos(r_mc.dot(uv), &sinVal, &cosVal);
 
                 thrust::complex<double> exp_part = (cosVal -  
                         I*sinVal) / (uv.dot(uv));
