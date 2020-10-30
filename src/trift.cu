@@ -4,6 +4,16 @@
 __global__
 void ft(double *x, double *y, double *flux, double *u, double *v, 
         thrust::complex<double> *vis, int nu, int* triangles, int nt) {
+    // Shared array to put results into.
+
+    __shared__ Vector<double, 3> rn1[32*3];
+    __shared__ Vector<double, 3> rn[32*3];
+    __shared__ Vector<double, 3> rn_1[32*3];
+    __shared__ Vector<double, 3> ln[32*3];
+    __shared__ Vector<double, 3> ln_1[32*3];
+    __shared__ double ln_1_dot_zhat_cross_ln[32*3];
+    __shared__ double intensity_triangle[3*32];
+
     // Loop through and take the Fourier transform of each triangle.
     
     thrust::complex<double> I = thrust::complex<double>(0., 1.);
@@ -17,38 +27,61 @@ void ft(double *x, double *y, double *flux, double *u, double *v,
 
         // Loop over all of the triangles for this uv point.
 
-        for (int i = 0; i < nt; i+=3) {
-            double intensity_triangle = (flux[triangles[i]] + 
-                flux[triangles[i+1]] + flux[triangles[i+2]]) / 3.;
+        for (int i = 0; i < nt; i+=3*32) {
+            // Get the index for the triangle this thread is 
+            // responsible for.
+
+            int idx = 3*threadIdx.x;
+
+            // Check that this triangle exists.
+
+            if (i + idx >= nt) {
+                for (int j = 0; j < 3; j++)
+                    intensity_triangle[idx+j] = 0;
+                continue;
+            }
+
+            // Loop through and do the calculation.
+
+            double intensity = (flux[triangles[i+idx]] + 
+                flux[triangles[i+idx+1]] + flux[triangles[i+idx+2]]) / 3.;
 
             for (int j = 0; j < 3; j++) {
+                intensity_triangle[idx+j] = intensity;
+
                 // Calculate the vectors for the vertices of the triangle.
 
-                int i_rn1 = triangles[i + (j+1)%3];
-                Vector<double, 3> rn1(x[i_rn1], y[i_rn1],  0.);
+                int i_rn1 = triangles[i + idx + (j+1)%3];
+                rn1[idx+j] = Vector<double, 3>(x[i_rn1], y[i_rn1],  0.);
 
-                int i_rn = triangles[i + j];
-                Vector<double, 3> rn(x[i_rn], y[i_rn],  0.);
+                int i_rn = triangles[i + idx + j];
+                rn[idx+j] = Vector<double, 3>(x[i_rn], y[i_rn],  0.);
 
-                int i_rn_1 = triangles[i + (j+2)%3];
-                Vector<double, 3> rn_1(x[i_rn_1], y[i_rn_1],  0.);
+                int i_rn_1 = triangles[i + idx + (j+2)%3];
+                rn_1[idx+j] = Vector<double, 3>(x[i_rn_1], y[i_rn_1],  0.);
 
                 // Calculate the vectors for the edges of the triangle.
 
-                Vector<double, 3> ln = rn1 - rn;
-                Vector<double, 3> ln_1 = rn - rn_1;
+                ln[idx+j] = rn1[idx+j] - rn[idx+j];
+                ln_1[idx+j] = rn[idx+j] - rn_1[idx+j];
 
                 // Now loop through the UV points and calculate the Fourier
                 // Transform.
 
-                double ln_1_dot_zhat_cross_ln = ln_1.dot(zhat.cross(ln));
-                double rn_dot_uv = rn.dot(uv);
+                ln_1_dot_zhat_cross_ln[idx+j] = ln_1[idx+j].dot(zhat.cross(
+                        ln[idx+j]));
+            }
+
+            __syncthreads();
+
+            for (int j = 0; j < 3*32; j++) {
+                double rn_dot_uv = rn[j].dot(uv);
 
                 double sinVal, cosVal;
                 sincos(rn_dot_uv, &sinVal, &cosVal);
 
-                vis[k] += intensity_triangle * ln_1_dot_zhat_cross_ln /
-                        (ln.dot(uv) * ln_1.dot(uv)) * (cosVal - I*sinVal);
+                vis[k] += intensity_triangle[j] * ln_1_dot_zhat_cross_ln[j] /
+                        (ln[j].dot(uv) * ln_1[j].dot(uv)) * (cosVal - I*sinVal);
             }
         }
     }
