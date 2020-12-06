@@ -117,10 +117,13 @@ class cuda_build_ext(build_ext):
         include_dirs=[os.path.join("include"), 
                 os.path.join("delaunator-cpp","include"),
                 numpy_include, 
-                CUDA['include'], 
                 pybind11.get_include(False),
                 pybind11.get_include(True),
         ]
+        try:
+            include_dirs.append(CUDA['include'])
+        except:
+            pass
 
         for ext in self.extensions:
             ext.include_dirs = include_dirs + ext.include_dirs
@@ -171,20 +174,20 @@ cpu = Extension("trift.cpu", sources=["src/trift.cc"], language="c++",
         extra_link_args=["-march=native",'-fopenmp',
             "-mmacosx-version-min=10.9"])
 
-cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
-        library_dirs=[CUDA['lib64']],
-        libraries=['cudart'],
-        runtime_library_dirs=[CUDA['lib64']],
-        extra_compile_args={
-            'gcc': [],
-            'nvcc': [
-                '-O3', '-arch=sm_75', '--use_fast_math', 
-                '--ptxas-options=-v', '-c', 
-                '--compiler-options', "'-fPIC'"]},
-        extra_link_args=['-lcudadevrt', '-lcudart'])
-
 extensions = [cpu]
 if cuda_found:
+    cuda = Extension("trift.cuda", sources=["src/trift.cu"], language="c++",
+            library_dirs=[CUDA['lib64']],
+            libraries=['cudart'],
+            runtime_library_dirs=[CUDA['lib64']],
+            extra_compile_args={
+                'gcc': [],
+                'nvcc': [
+                    '-O3', '-arch=sm_75', '--use_fast_math', 
+                    '--ptxas-options=-v', '-c', 
+                    '--compiler-options', "'-fPIC'"]},
+            extra_link_args=['-lcudadevrt', '-lcudart'])
+
     extensions.append(cuda)
 
 setup(name="trift", 
