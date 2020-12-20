@@ -1,2 +1,5 @@
 from . import cpu
-from . import cuda
+try:
+    from . import cuda
+except:
+    pass
