@@ -1,0 +1,30 @@
+package:
+    name: trift
+    version: "0.9.0"
+
+source:
+    path: ../TriFT
+
+build:
+    number: 0
+    script: "{{ PYTHON }} -m pip install . -vv --no-deps"
+
+requirements:
+    build:
+        - {{ compiler('cxx') }}
+    host:
+        - python
+        - numpy >=1.16
+        - pybind11
+        - pip
+    run:
+        - python
+        - {{ pin_compatible('numpy>=1.16') }}
+
+about:
+    home: https://github.com/psheehan/pdspy
+    summary: 'Fourier transforms of unstructured images'
+
+extra:
+    recipe-maintainers:
+        - psheehan
