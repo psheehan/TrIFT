@@ -255,7 +255,7 @@ void ft2D(double *x, double *y, double *flux, double *u, double *v,
 
                 int idy = k * nv;
 
-                for (std::size_t l = 0; l < (std::size_t) nv; l++) {
+                for (int l = 0; l < nv; l++) {
                     vis[idy+l] += intensity_triangle[l] * 
                         ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
                         (cosVal - I*sinVal);
@@ -373,7 +373,7 @@ void ft2D_extended(double *x, double *y, double *flux, double *u, double *v,
 
                 int idy = k * nv;
 
-                for (int l = 0; l < (std::size_t) nv; l++) {
+                for (int l = 0; l < nv; l++) {
                     vis[idy+l] += flux[triangles[i+j]*nv+l] * 
                             zhat_cross_ln1.dot(integral_part1+rn1*
                             integral_part2) / (2.*Area);
@@ -424,7 +424,7 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
     double *d_x, *d_y, *d_flux, *d_u, *d_v;
     cudaMalloc(&d_x, nx*sizeof(double));
     cudaMalloc(&d_y, nx*sizeof(double));
-    cudaMalloc(&d_flux, nx*sizeof(double));
+    cudaMalloc(&d_flux, nx*nv*sizeof(double));
     cudaMalloc(&d_u, nu*sizeof(double));
     cudaMalloc(&d_v, nu*sizeof(double));
 
@@ -433,7 +433,7 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
 
     cudaMemcpy(d_x, x, nx*sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_y, y, nx*sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_flux, flux, nx*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_flux, flux, nx*nv*sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_u, u, nu*sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_v, v, nu*sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_vis, vis, nu*nv*sizeof(std::complex<double>), 
