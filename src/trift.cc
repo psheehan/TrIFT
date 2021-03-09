@@ -313,18 +313,19 @@ void ft2D(double *x, double *y, double *flux, double *u, double *v,
                 Vector <double, 3> uv(2*pi*u[k], 2*pi*v[k], 0.);
 
                 double rn_dot_uv = rn.dot(uv);
+
+                std::complex<double> withoutI = ln_1_dot_zhat_cross_ln / 
+                    (ln.dot(uv) * ln_1.dot(uv)) * (FastCos(rn_dot_uv) - 
+                    I*FastSin(rn_dot_uv));
                 
                 std::size_t idy = k * nv;
 
                 for (std::size_t l = 0; l < (std::size_t) nv; l++) {
                     #ifdef _OPENMP
                     vis_tmp[thread_id][idy+l] += intensity_triangle[l] * 
-                        ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) * 
-                        (FastCos(rn_dot_uv) - I*FastSin(rn_dot_uv));
+                        withoutI;
                     #else
-                    vis[idy+l] += intensity_triangle[l] *
-                        ln_1_dot_zhat_cross_ln / (ln.dot(uv) * ln_1.dot(uv)) *
-                        (FastCos(rn_dot_uv) - I*FastSin(rn_dot_uv));
+                    vis[idy+l] += intensity_triangle[l] * withoutI;
                     #endif
                 }
             }
@@ -538,7 +539,7 @@ py::array_t<std::complex<double>> trift(py::array_t<double> _x,
 
     // Setup the resulting array.
 
-    auto _vis = py::array_t<std::complex<double>>(nu);
+    auto _vis = py::array_t<std::complex<double>>(nu*nv);
     if (flux_buf.ndim == 2) _vis.resize({nu, nv});
 
     auto vis_buf = _vis.request();
